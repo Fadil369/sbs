@@ -1,0 +1,40 @@
+name: Cline Issue Assistant
+on:
+  issues:
+    types: [opened, edited, reopened]
+  issue_comment:
+    types: [created]
+
+jobs:
+  analyze-issue:
+    runs-on: ubuntu-latest
+    if: github.event.issue.state != 'closed' && (github.event_name == 'issues' || contains(github.event.comment.body, '/analyze'))
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Set up Cline CLI
+        run: |
+          # Install Cline CLI
+          curl -fsSL https://raw.githubusercontent.com/cline/cline/main/install.sh | bash
+          echo "$HOME/.cline/bin" >> $GITHUB_PATH
+          
+      - name: Analyze issue
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+        run: |
+          # Run the analyze script
+          chmod +x ./git-scripts/analyze-issue.sh
+          ANALYSIS=$(./git-scripts/analyze-issue.sh "$ISSUE_URL")
+          
+          # Post comment with analysis
+          echo "$ANALYSIS" > analysis.txt
+          COMMENT_BODY=$(jq -Rs '{body: .}' < analysis.txt)
+          
+          curl -X POST \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/comments \
+            -d "$COMMENT_BODY"
