@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  sbs-landing:
+    build: .
+    container_name: sbs-landing
+    restart: always
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - N8N_WEBHOOK_URL=https://n8n.srv791040.hstgr.cloud/webhook/sbs-claim-submission
+      - ENABLE_DIRECT_SBS=true
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.sbs-landing.rule=Host(`sbs.brainsait.cloud`)
+      - traefik.http.routers.sbs-landing.tls=true
+      - traefik.http.routers.sbs-landing.entrypoints=web,websecure
+      - traefik.http.routers.sbs-landing.tls.certresolver=mytlschallenge
+      - traefik.http.services.sbs-landing.loadbalancer.server.port=3000
+      # Security headers
+      - traefik.http.middlewares.sbs-landing.headers.SSLRedirect=true
+      - traefik.http.middlewares.sbs-landing.headers.STSSeconds=315360000
+      - traefik.http.middlewares.sbs-landing.headers.browserXSSFilter=true
+      - traefik.http.middlewares.sbs-landing.headers.contentTypeNosniff=true
+      - traefik.http.middlewares.sbs-landing.headers.forceSTSHeader=true
+      - traefik.http.middlewares.sbs-landing.headers.STSIncludeSubdomains=true
+      - traefik.http.middlewares.sbs-landing.headers.STSPreload=true
+      - traefik.http.routers.sbs-landing.middlewares=sbs-landing@docker
+    networks:
+      - n8n_default
+      - sbs-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  n8n_default:
+    external: true
+  sbs-network:
+    external: true
+    name: sbs-source_default
