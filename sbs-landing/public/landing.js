@@ -298,6 +298,12 @@ class SBSLandingPage {
     const t = translations[this.lang];
     const container = this.ensureToastContainer();
     
+    // Animation timing constants
+    const TOAST_SLIDE_OFFSET = '400px';
+    const ANIMATION_START_DELAY = 10;
+    const TOAST_AUTO_DISMISS_DELAY = 5000;
+    const FADE_OUT_DURATION = 300;
+    
     const toast = document.createElement('div');
     toast.className = 'pointer-events-auto bg-red-600 text-white px-6 py-4 rounded-lg shadow-lg flex items-start gap-3 transform translate-x-0 transition-all duration-300 ease-out';
     
@@ -309,32 +315,40 @@ class SBSLandingPage {
         <div class="font-semibold">${t.claim.error}</div>
         <div class="text-sm mt-1 opacity-90">${this.escapeHtml(message)}</div>
       </div>
-      <button class="ml-2 text-white hover:text-gray-200 transition-colors" onclick="this.parentElement.remove()">
+      <button class="toast-close-btn ml-2 text-white hover:text-gray-200 transition-colors">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
         </svg>
       </button>
     `;
     
+    // Attach close button event listener programmatically (CSP compliant)
+    const closeBtn = toast.querySelector('.toast-close-btn');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        toast.remove();
+      });
+    }
+    
     // Add toast with slide-in animation
-    toast.style.transform = 'translateX(400px)';
+    toast.style.transform = `translateX(${TOAST_SLIDE_OFFSET})`;
     container.appendChild(toast);
     
     // Trigger slide-in animation
     setTimeout(() => {
       toast.style.transform = 'translateX(0)';
-    }, 10);
+    }, ANIMATION_START_DELAY);
     
-    // Auto-dismiss after 5 seconds
+    // Auto-dismiss after specified delay
     setTimeout(() => {
-      toast.style.transform = 'translateX(400px)';
+      toast.style.transform = `translateX(${TOAST_SLIDE_OFFSET})`;
       toast.style.opacity = '0';
       setTimeout(() => {
         if (toast.parentElement) {
           toast.remove();
         }
-      }, 300);
-    }, 5000);
+      }, FADE_OUT_DURATION);
+    }, TOAST_AUTO_DISMISS_DELAY);
   }
 
   escapeHtml(text) {
