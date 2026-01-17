@@ -9,6 +9,7 @@ const axios = require('axios');
 const FormData = require('form-data');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 
 const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:3000';
 const ENDPOINT = `${API_BASE_URL}/api/submit-claim`;
@@ -67,7 +68,7 @@ async function testSubmitClaim() {
   
   // Create a dummy test file
   const testFileContent = 'This is a test claim document';
-  const testFilePath = path.join(require('os').tmpdir(), 'test-claim.txt');
+  const testFilePath = path.join(os.tmpdir(), 'test-claim.txt');
   
   try {
     fs.writeFileSync(testFilePath, testFileContent);
