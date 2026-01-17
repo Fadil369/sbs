@@ -97,7 +97,11 @@ async function testSubmitClaim() {
     console.log('   Response:', JSON.stringify(response.data, null, 2));
 
     // Cleanup
-    fs.unlinkSync(testFilePath);
+    try {
+      fs.unlinkSync(testFilePath);
+    } catch (error) {
+      console.log('⚠️ Failed to cleanup test file:', error.message);
+    }
   } catch (error) {
     if (error.response) {
       console.log('❌ POST request with file failed with status:', error.response.status);
