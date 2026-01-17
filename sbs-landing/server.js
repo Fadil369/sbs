@@ -657,7 +657,9 @@ app.get('/api/claim-status/:claimId', async (req, res) => {
     const { claimId } = req.params;
 
     // Validate claim ID format
-    if (!claimId || !claimId.startsWith('CLM-')) {
+    // Validate claim ID format
+    const claimIdRegex = /^CLM-[A-Z0-9]+-[A-Z0-9]+$/;
+    if (!claimId || !claimIdRegex.test(claimId)) {
       return res.status(400).json({
         success: false,
         error: 'Invalid claim ID format',
