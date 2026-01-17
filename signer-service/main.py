@@ -190,8 +190,19 @@ def generate_test_keypair(facility_id: int) -> tuple:
         backend=default_backend()
     )
     
-    # Create certificates directory if it doesn't exist
-    cert_dir = os.path.join(os.getenv("CERT_BASE_PATH", "/certs"), f"facility_{facility_id}")
+    # Create certificates directory if it doesn't exist, ensuring it stays under CERT_BASE_PATH
+    env_cert_base = os.getenv("CERT_BASE_PATH")
+    if env_cert_base is None or not env_cert_base.strip():
+        base_cert_path = os.path.abspath("/certs")
+    else:
+        base_cert_path = os.path.abspath(env_cert_base)
+    cert_dir = os.path.join(base_cert_path, f"facility_{facility_id}")
+    cert_dir = os.path.abspath(os.path.normpath(cert_dir))
+    if not cert_dir.startswith(base_cert_path + os.sep):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid facility_id resulting in unsafe certificate path"
+        )
     os.makedirs(cert_dir, exist_ok=True)
     
     # Save private key
