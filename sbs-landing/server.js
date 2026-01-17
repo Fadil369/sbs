@@ -43,9 +43,27 @@ const WORKFLOW_STAGES = {
   ERROR: 'error'
 };
 
-// In-memory claim store (for tracking - would use Redis/DB in production)
+// In-memory claim store for tracking workflow state.
+// IMPORTANT:
+// - This storage is NOT persistent and all data will be lost on server restart.
+// - It is NOT suitable for production or distributed/load-balanced deployments,
+//   because each process will have its own isolated Map.
+// - In production, configure and use a durable shared backend (for example,
+//   Redis or a database) and set SBS_CLAIM_STORE_BACKEND accordingly.
 const claimStore = new Map();
 
+// Warn if we are running in production with only the in-memory claim store.
+if (process.env.NODE_ENV === 'production' && !process.env.SBS_CLAIM_STORE_BACKEND) {
+  // This warning is intentionally loud to prevent accidental production use
+  // of the in-memory claim tracking store.
+  // eslint-disable-next-line no-console
+  console.warn(
+    '[SBS CLAIM TRACKER] WARNING: Using in-memory claimStore in PRODUCTION. ' +
+    'Claim tracking data will be lost on restart and will not be shared ' +
+    'across multiple instances. Configure a persistent backend and set ' +
+    'SBS_CLAIM_STORE_BACKEND to disable this warning.'
+  );
+}
 // Claim tracking class
 class ClaimTracker {
   constructor(claimId, data) {
