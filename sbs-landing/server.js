@@ -194,7 +194,7 @@ app.post('/api/submit-claim', upload.single('claimFile'), async (req, res) => {
       setTimeout(async () => {
         try {
           const absolutePath = path.resolve(req.file.path);
-          if (!absolutePath.startsWith(UPLOAD_ROOT + path.sep) && absolutePath !== UPLOAD_ROOT) {
+          if (!absolutePath.startsWith(UPLOAD_ROOT + path.sep)) {
             console.error('Attempt to delete file outside of upload root:', absolutePath);
           } else {
             await fs.unlink(absolutePath);
