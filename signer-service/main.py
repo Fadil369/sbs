@@ -191,7 +191,11 @@ def generate_test_keypair(facility_id: int) -> tuple:
     )
     
     # Create certificates directory if it doesn't exist, ensuring it stays under CERT_BASE_PATH
-    base_cert_path = os.path.abspath(os.getenv("CERT_BASE_PATH", "/certs"))
+    env_cert_base = os.getenv("CERT_BASE_PATH")
+    if env_cert_base is None or not env_cert_base.strip():
+        base_cert_path = os.path.abspath("/certs")
+    else:
+        base_cert_path = os.path.abspath(env_cert_base)
     cert_dir = os.path.join(base_cert_path, f"facility_{facility_id}")
     cert_dir = os.path.abspath(os.path.normpath(cert_dir))
     if not cert_dir.startswith(base_cert_path + os.sep):
