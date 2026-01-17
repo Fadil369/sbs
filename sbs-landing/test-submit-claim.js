@@ -73,8 +73,14 @@ async function testSubmitClaim() {
 
     // Create a dummy test file
     const testFileContent = 'This is a test claim document';
-    const testFilePath = path.join('/tmp', 'test-claim.txt');
-    fs.writeFileSync(testFilePath, testFileContent);
+    const testFilePath = path.join(require('os').tmpdir(), 'test-claim.txt');
+    
+    try {
+      fs.writeFileSync(testFilePath, testFileContent);
+    } catch (error) {
+      console.log('❌ Failed to create test file:', error.message);
+      return;
+    }
 
     formData.append('claimFile', fs.createReadStream(testFilePath), {
       filename: 'test-claim.txt',
