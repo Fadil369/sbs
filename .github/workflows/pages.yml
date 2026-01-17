@@ -27,9 +27,7 @@ jobs:
       - name: Configure API base URL
         if: ${{ vars.PAGES_API_BASE_URL != '' }}
         run: |
-          if [ -n "${{ vars.PAGES_API_BASE_URL }}" ]; then
-            printf 'window.SBS_API_BASE_URL = "%s";' "${{ vars.PAGES_API_BASE_URL }}" > sbs-landing/public/config.js
-          fi
+          printf 'window.SBS_API_BASE_URL = "%s";' "${{ vars.PAGES_API_BASE_URL }}" > sbs-landing/public/config.js
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
