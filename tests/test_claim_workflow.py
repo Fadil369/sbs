@@ -7,7 +7,7 @@ import pytest
 import requests
 import time
 import uuid
-from typing import Dict, Any, Optional
+from typing import Dict
 
 # Service URLs
 LANDING_API_URL = "http://localhost:3000"
