@@ -797,7 +797,6 @@ class SBSLandingPage {
       const isCompleted = status === 'completed';
       const isInProgress = status === 'in_progress';
       const isFailed = status === 'failed';
-      const isPending = status === 'pending';
 
       const statusColor = isCompleted ? 'emerald' : isFailed ? 'red' : isInProgress ? 'blue' : 'slate';
       const bgColor = isCompleted ? 'bg-emerald-500/20' : isFailed ? 'bg-red-500/20' : isInProgress ? 'bg-blue-500/20' : 'bg-slate-800';
