@@ -123,6 +123,26 @@ class SBSLandingPage {
     this.init();
   }
 
+  getApiBaseUrl() {
+    const rawBaseUrl = (window.SBS_API_BASE_URL || '').trim();
+    if (!rawBaseUrl) {
+      return '';
+    }
+    
+    // Validate URL format and protocol
+    try {
+      const url = new URL(rawBaseUrl);
+      if (!['http:', 'https:'].includes(url.protocol)) {
+        console.error('Invalid protocol in API base URL');
+        return '';
+      }
+      return url.origin;
+    } catch (error) {
+      console.error('Invalid API base URL format');
+      return '';
+    }
+  }
+
   init() {
     document.documentElement.lang = this.lang;
     document.documentElement.dir = this.lang === 'ar' ? 'rtl' : 'ltr';
@@ -177,7 +197,10 @@ class SBSLandingPage {
     }
 
     try {
-      const response = await fetch('/api/submit-claim', {
+      const apiBaseUrl = this.getApiBaseUrl();
+      const submitUrl = apiBaseUrl ? `${apiBaseUrl}/api/submit-claim` : '/api/submit-claim';
+
+      const response = await fetch(submitUrl, {
         method: 'POST',
         body: formDataToSend
       });
