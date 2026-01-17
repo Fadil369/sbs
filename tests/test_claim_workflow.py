@@ -719,7 +719,7 @@ class TestPerformance:
 
         assert response.status_code == 200
         # Claim submission should return quickly (async processing)
-        assert duration < 5.0, f"Claim submission took {duration:.2f}s (expected < 5s)"
+        assert duration < 2.0, f"Claim submission took {duration:.2f}s (expected < 2s)"
 
 
 if __name__ == "__main__":
