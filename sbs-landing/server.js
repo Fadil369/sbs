@@ -18,7 +18,18 @@ const PORT = process.env.PORT || 3000;
 
 // Security middleware
 app.use(helmet({
-  contentSecurityPolicy: false, // Allow iframe for Google Calendar
+  contentSecurityPolicy: {
+    useDefaults: true,
+    directives: {
+      "default-src": ["'self'"],
+      "script-src": ["'self'", "https://apis.google.com", "https://www.gstatic.com", "https://www.google.com"],
+      "style-src": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      "font-src": ["'self'", "https://fonts.gstatic.com"],
+      "img-src": ["'self'", "data:", "https://www.google.com", "https://www.gstatic.com"],
+      "frame-src": ["'self'", "https://calendar.google.com", "https://accounts.google.com"],
+      "connect-src": ["'self'", "https://www.googleapis.com", "https://www.google.com"],
+    },
+  },
 }));
 
 // Rate limiting
