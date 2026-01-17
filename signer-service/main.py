@@ -206,7 +206,7 @@ def generate_test_keypair(facility_id: int) -> tuple:
     if common_base != safe_root:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Computed certificate directory is outside of the allowed root"
+            detail="Invalid certificate directory configuration"
         )
     os.makedirs(cert_dir, exist_ok=True)
     
