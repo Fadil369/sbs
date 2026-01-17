@@ -7,7 +7,6 @@ import pytest
 import requests
 import json
 import io
-import os
 from unittest.mock import patch
 
 BASE_URL = "http://localhost:3000"
