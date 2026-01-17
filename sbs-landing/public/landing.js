@@ -319,14 +319,29 @@ class SBSLandingPage {
         : `/api/claim-status/${this.currentClaimId}`;
 
       const response = await fetch(statusUrl);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
       const result = await response.json();
 
       if (result.success) {
         this.claimStatus = result;
         this.render();
+      } else {
+        console.error('Claim status fetch failed:', result.error);
+        // Stop polling on persistent errors
+        this.stopStatusPolling();
       }
     } catch (error) {
       console.error('Error fetching claim status:', error);
+      // Stop polling after multiple consecutive failures
+      this.statusPollFailures = (this.statusPollFailures || 0) + 1;
+      if (this.statusPollFailures >= 3) {
+        this.stopStatusPolling();
+        this.showError('Unable to fetch claim status. Please refresh the page.');
+      }
     }
   }
 
