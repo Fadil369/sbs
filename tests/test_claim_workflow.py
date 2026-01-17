@@ -5,7 +5,6 @@ Tests the entire claim submission and processing pipeline
 
 import pytest
 import requests
-import json
 import time
 import uuid
 from typing import Dict, Any, Optional
