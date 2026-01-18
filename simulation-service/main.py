@@ -239,7 +239,8 @@ async def generate_test_claim(request: TestClaimRequest):
 
     # Select random patient
     patient_name = random.choice(SAUDI_NAMES)
-    patient_id = f"1{''.join([str(random.randint(0, 9)) for _ in range(9)])}"  # Saudi ID format
+    patient_id_suffix = str(uuid.uuid4().int % 10**9).zfill(9)
+    patient_id = f"1{patient_id_suffix}"  # Saudi ID format
 
     # Select services based on claim type and scenario
     available_services = SERVICE_CATALOG.get(claim_type, [])
