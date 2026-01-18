@@ -887,6 +887,9 @@ class SBSLandingPage {
             
             <div class="flex items-center gap-4">
               <a href="#features" class="text-slate-300 hover:text-white transition-colors text-sm font-medium hidden md:block">${t.nav.features}</a>
+              <a href="dashboard.html" class="text-slate-300 hover:text-white transition-colors text-sm font-medium hidden md:block">
+                Dashboard
+              </a>
               <button onclick="app.openTrackingModal()" class="text-slate-300 hover:text-white transition-colors text-sm font-medium hidden md:block">
                 ${t.claim.trackExisting}
               </button>
