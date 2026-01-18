@@ -3,7 +3,7 @@
 # Or: pytest tests/e2e/ (headless mode)
 
 import pytest
-from playwright.sync_api import sync_playwright
+
 
 @pytest.fixture(scope="session")
 def browser_type_launch_args():
@@ -12,6 +12,7 @@ def browser_type_launch_args():
         "headless": True,
         "slow_mo": 100,  # Slow down actions by 100ms for debugging
     }
+
 
 @pytest.fixture(scope="session")
 def browser_context_args():

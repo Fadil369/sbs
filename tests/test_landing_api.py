@@ -322,8 +322,10 @@ class TestClaimStatus:
         assert "totalStages" in data["progress"]
 
         # Check stages structure
-        expected_stages = ["received", "validation", "normalization",
-                          "financialRules", "signing", "nphiesSubmission"]
+        expected_stages = [
+            "received", "validation", "normalization",
+            "financialRules", "signing", "nphiesSubmission"
+        ]
         for stage in expected_stages:
             assert stage in data["stages"]
             assert "status" in data["stages"][stage]
@@ -332,7 +334,6 @@ class TestClaimStatus:
         assert "timestamps" in data
         assert "created" in data["timestamps"]
         assert "lastUpdate" in data["timestamps"]
-
         # Check timeline
         assert "timeline" in data
         assert isinstance(data["timeline"], list)

@@ -6,7 +6,6 @@ Provides shared fixtures and configuration for all test modules.
 """
 
 import pytest
-import json
 import os
 import sys
 from typing import Dict, Any
@@ -15,8 +14,7 @@ from datetime import datetime, date
 # Add tests directory to path for imports
 sys.path.insert(0, os.path.dirname(__file__))
 
-# Import sample data generators
-from fixtures_data import (
+from fixtures_data import (  # noqa: E402
     SampleData,
     SAMPLE_CLAIM_SIMPLE,
     SAMPLE_CLAIM_COMPLEX,

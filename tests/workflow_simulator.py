@@ -19,8 +19,8 @@ import argparse
 import uuid
 import logging
 from datetime import datetime, date
-from typing import Dict, Any, Optional, List, Tuple
-from dataclasses import dataclass, asdict, field
+from typing import Dict, Any, Optional, List
+from dataclasses import dataclass, field
 from enum import Enum
 
 
@@ -52,7 +52,7 @@ class WorkflowStep:
     request: Optional[Dict[str, Any]] = None
     response: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
-    
+
     @property
     def duration_ms(self) -> Optional[float]:
         if self.start_time and self.end_time:
@@ -69,7 +69,7 @@ class ClaimSubmission:
     services: List[Dict[str, Any]]
     diagnosis_codes: List[str]
     provider_details: Dict[str, Any]
-    
+
     @classmethod
     def create_sample(cls) -> 'ClaimSubmission':
         """Create a sample claim for testing"""
@@ -134,13 +134,13 @@ class WorkflowResult:
     signed_bundle: Optional[Dict[str, Any]] = None
     priced_bundle: Optional[Dict[str, Any]] = None
     nphies_response: Optional[Dict[str, Any]] = None
-    
+
     @property
     def total_duration_ms(self) -> Optional[float]:
         if self.start_time and self.end_time:
             return (self.end_time - self.start_time).total_seconds() * 1000
         return None
-    
+
     def to_report(self) -> Dict[str, Any]:
         """Generate a human-readable report"""
         return {
@@ -163,11 +163,11 @@ class WorkflowResult:
 class WorkflowSimulator:
     """
     Simulates the end-to-end claim submission workflow.
-    
+
     This simulator orchestrates calls to all microservices in the proper
     sequence, collecting results and timing information.
     """
-    
+
     def __init__(
         self,
         normalizer_url: str = "http://localhost:8000",
@@ -184,16 +184,16 @@ class WorkflowSimulator:
         self.timeout = aiohttp.ClientTimeout(total=timeout)
         self.verify_ssl = verify_ssl
         self._session: Optional[aiohttp.ClientSession] = None
-    
+
     async def __aenter__(self):
         connector = aiohttp.TCPConnector(ssl=self.verify_ssl)
         self._session = aiohttp.ClientSession(timeout=self.timeout, connector=connector)
         return self
-    
+
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         if self._session:
             await self._session.close()
-    
+
     async def check_services_health(self) -> Dict[str, bool]:
         """Check health status of all services"""
         services = {
@@ -202,7 +202,7 @@ class WorkflowSimulator:
             "financial": f"{self.financial_url}/health",
             "nphies": f"{self.nphies_url}/health"
         }
-        
+
         results = {}
         for name, url in services.items():
             try:
@@ -211,9 +211,9 @@ class WorkflowSimulator:
             except Exception as e:
                 logger.error(f"Health check failed for {name}: {e}")
                 results[name] = False
-        
+
         return results
-    
+
     async def execute_workflow(self, claim: ClaimSubmission) -> WorkflowResult:
         """Execute the complete workflow for a claim submission"""
         result = WorkflowResult(
@@ -221,60 +221,60 @@ class WorkflowSimulator:
             overall_status=WorkflowStatus.IN_PROGRESS,
             start_time=datetime.now()
         )
-        
+
         try:
             # Step 1: Normalize services to SBS codes
             normalize_step = await self._step_normalize(claim, result)
             result.steps.append(normalize_step)
-            
+
             if normalize_step.status != WorkflowStatus.SUCCESS:
                 result.overall_status = WorkflowStatus.FAILED
                 result.end_time = datetime.now()
                 return result
-            
+
             # Step 2: Build FHIR Bundle
             bundle_step = await self._step_build_bundle(claim, result)
             result.steps.append(bundle_step)
-            
+
             if bundle_step.status != WorkflowStatus.SUCCESS:
                 result.overall_status = WorkflowStatus.FAILED
                 result.end_time = datetime.now()
                 return result
-            
+
             # Step 3: Apply Financial Rules
             financial_step = await self._step_apply_financial_rules(result)
             result.steps.append(financial_step)
-            
+
             if financial_step.status != WorkflowStatus.SUCCESS:
                 result.overall_status = WorkflowStatus.FAILED
                 result.end_time = datetime.now()
                 return result
-            
+
             # Step 4: Sign the Bundle
             sign_step = await self._step_sign_bundle(claim.facility_id, result)
             result.steps.append(sign_step)
-            
+
             if sign_step.status != WorkflowStatus.SUCCESS:
                 result.overall_status = WorkflowStatus.FAILED
                 result.end_time = datetime.now()
                 return result
-            
+
             # Step 5: Submit to NPHIES
             submit_step = await self._step_submit_nphies(claim.facility_id, result)
             result.steps.append(submit_step)
-            
+
             if submit_step.status == WorkflowStatus.SUCCESS:
                 result.overall_status = WorkflowStatus.SUCCESS
             else:
                 result.overall_status = WorkflowStatus.FAILED
-            
+
         except Exception as e:
             logger.exception(f"Workflow execution failed: {e}")
             result.overall_status = WorkflowStatus.FAILED
-        
+
         result.end_time = datetime.now()
         return result
-    
+
     async def _step_normalize(
         self,
         claim: ClaimSubmission,
@@ -287,9 +287,9 @@ class WorkflowSimulator:
             status=WorkflowStatus.IN_PROGRESS,
             start_time=datetime.now()
         )
-        
+
         normalized_services = []
-        
+
         try:
             for service in claim.services:
                 payload = {
@@ -297,9 +297,9 @@ class WorkflowSimulator:
                     "internal_code": service["internal_code"],
                     "description": service["description"]
                 }
-                
+
                 step.request = payload
-                
+
                 async with self._session.post(
                     f"{self.normalizer_url}/normalize",
                     json=payload
@@ -324,7 +324,7 @@ class WorkflowSimulator:
                             "confidence": 0.5,
                             "mapping_source": "fallback"
                         })
-            
+
             result.normalized_bundle = {
                 "claim_id": claim.claim_id,
                 "facility_id": claim.facility_id,
@@ -333,18 +333,18 @@ class WorkflowSimulator:
                 "diagnosis_codes": claim.diagnosis_codes,
                 "provider_details": claim.provider_details
             }
-            
+
             step.response = {"normalized_count": len(normalized_services)}
             step.status = WorkflowStatus.SUCCESS
-            
+
         except Exception as e:
             logger.error(f"Normalization step failed: {e}")
             step.status = WorkflowStatus.FAILED
             step.error = str(e)
-        
+
         step.end_time = datetime.now()
         return step
-    
+
     async def _step_build_bundle(
         self,
         claim: ClaimSubmission,
@@ -357,11 +357,11 @@ class WorkflowSimulator:
             status=WorkflowStatus.IN_PROGRESS,
             start_time=datetime.now()
         )
-        
+
         try:
             # Build FHIR Bundle structure
             bundle = self._create_fhir_bundle(claim, result.normalized_bundle)
-            
+
             # Try to validate/build via normalizer service if endpoint exists
             try:
                 async with self._session.post(
@@ -373,19 +373,19 @@ class WorkflowSimulator:
             except aiohttp.ClientError:
                 # Use locally built bundle
                 pass
-            
+
             result.normalized_bundle = bundle
             step.response = {"resource_count": len(bundle.get("entry", []))}
             step.status = WorkflowStatus.SUCCESS
-            
+
         except Exception as e:
             logger.error(f"Bundle building failed: {e}")
             step.status = WorkflowStatus.FAILED
             step.error = str(e)
-        
+
         step.end_time = datetime.now()
         return step
-    
+
     def _create_fhir_bundle(
         self,
         claim: ClaimSubmission,
@@ -394,7 +394,7 @@ class WorkflowSimulator:
         """Create FHIR R4 Claim Bundle"""
         bundle_id = str(uuid.uuid4())
         timestamp = datetime.now().isoformat()
-        
+
         # Patient resource
         patient_resource = {
             "resourceType": "Patient",
@@ -411,7 +411,7 @@ class WorkflowSimulator:
             "gender": claim.patient["gender"],
             "birthDate": claim.patient["birthDate"]
         }
-        
+
         # Coverage resource (insurance)
         coverage_resource = {
             "resourceType": "Coverage",
@@ -436,15 +436,15 @@ class WorkflowSimulator:
                 "value": claim.patient["insurance"]["policy_number"]
             }]
         }
-        
+
         # Build claim items from normalized services
         claim_items = []
         total_amount = 0
-        
+
         for idx, service in enumerate(normalized_data.get("services", []), 1):
             item_total = service["quantity"] * service["unit_price"]
             total_amount += item_total
-            
+
             claim_items.append({
                 "sequence": idx,
                 "productOrService": {
@@ -465,7 +465,7 @@ class WorkflowSimulator:
                     "currency": "SAR"
                 }
             })
-        
+
         # Diagnosis entries
         diagnosis = []
         for idx, code in enumerate(claim.diagnosis_codes, 1):
@@ -484,7 +484,7 @@ class WorkflowSimulator:
                     }]
                 }]
             })
-        
+
         # Claim resource
         claim_resource = {
             "resourceType": "Claim",
@@ -534,7 +534,7 @@ class WorkflowSimulator:
                 "currency": "SAR"
             }
         }
-        
+
         # Build Bundle
         bundle = {
             "resourceType": "Bundle",
@@ -547,9 +547,9 @@ class WorkflowSimulator:
                 {"fullUrl": f"urn:uuid:{uuid.uuid4()}", "resource": claim_resource}
             ]
         }
-        
+
         return bundle
-    
+
     async def _step_apply_financial_rules(
         self,
         result: WorkflowResult
@@ -561,15 +561,15 @@ class WorkflowSimulator:
             status=WorkflowStatus.IN_PROGRESS,
             start_time=datetime.now()
         )
-        
+
         try:
             payload = {
                 "bundle": result.normalized_bundle,
                 "facility_id": result.normalized_bundle.get("facility_id", 1)
             }
-            
+
             step.request = {"bundle_id": result.normalized_bundle.get("id")}
-            
+
             async with self._session.post(
                 f"{self.financial_url}/validate",
                 json=payload
@@ -589,7 +589,7 @@ class WorkflowSimulator:
                     step.response = {"fallback": True}
                     step.status = WorkflowStatus.SUCCESS
                     logger.warning("Financial rules service unavailable, using bundle as-is")
-            
+
         except aiohttp.ClientError as e:
             # Service not available - proceed with unpriced bundle
             result.priced_bundle = result.normalized_bundle
@@ -600,10 +600,10 @@ class WorkflowSimulator:
             logger.error(f"Financial rules step failed: {e}")
             step.status = WorkflowStatus.FAILED
             step.error = str(e)
-        
+
         step.end_time = datetime.now()
         return step
-    
+
     async def _step_sign_bundle(
         self,
         facility_id: int,
@@ -616,15 +616,15 @@ class WorkflowSimulator:
             status=WorkflowStatus.IN_PROGRESS,
             start_time=datetime.now()
         )
-        
+
         try:
             payload = {
                 "bundle": result.priced_bundle,
                 "facility_id": facility_id
             }
-            
+
             step.request = {"bundle_id": result.priced_bundle.get("id")}
-            
+
             async with self._session.post(
                 f"{self.signer_url}/sign",
                 json=payload
@@ -644,7 +644,7 @@ class WorkflowSimulator:
                     step.response = {"signed": False, "reason": "Service unavailable"}
                     step.status = WorkflowStatus.SUCCESS
                     logger.warning("Signer service unavailable, proceeding without signature")
-            
+
         except aiohttp.ClientError as e:
             result.signed_bundle = result.priced_bundle
             step.response = {"signed": False, "reason": str(e)}
@@ -654,10 +654,10 @@ class WorkflowSimulator:
             logger.error(f"Signing step failed: {e}")
             step.status = WorkflowStatus.FAILED
             step.error = str(e)
-        
+
         step.end_time = datetime.now()
         return step
-    
+
     async def _step_submit_nphies(
         self,
         facility_id: int,
@@ -670,22 +670,22 @@ class WorkflowSimulator:
             status=WorkflowStatus.IN_PROGRESS,
             start_time=datetime.now()
         )
-        
+
         try:
             payload = {
                 "bundle": result.signed_bundle,
                 "facility_id": facility_id,
                 "request_type": "Claim"
             }
-            
+
             step.request = {"bundle_id": result.signed_bundle.get("id")}
-            
+
             async with self._session.post(
                 f"{self.nphies_url}/submit",
                 json=payload
             ) as response:
                 data = await response.json() if response.content_type == 'application/json' else {}
-                
+
                 if response.status in [200, 201, 202]:
                     result.nphies_response = data
                     step.response = {
@@ -704,7 +704,7 @@ class WorkflowSimulator:
                     }
                     # Still mark as success if we got a response
                     step.status = WorkflowStatus.SUCCESS if response.status < 500 else WorkflowStatus.FAILED
-            
+
         except aiohttp.ClientError as e:
             step.response = {"submitted": False, "reason": str(e)}
             step.status = WorkflowStatus.FAILED
@@ -714,7 +714,7 @@ class WorkflowSimulator:
             logger.error(f"NPHIES step failed: {e}")
             step.status = WorkflowStatus.FAILED
             step.error = str(e)
-        
+
         step.end_time = datetime.now()
         return step
 
@@ -724,7 +724,7 @@ async def run_simulation(args):
     print("\n" + "=" * 60)
     print("SBS Integration Engine - End-to-End Workflow Simulator")
     print("=" * 60 + "\n")
-    
+
     # Create sample claim
     claim = ClaimSubmission.create_sample()
     print(f"📋 Created sample claim: {claim.claim_id}")
@@ -732,7 +732,7 @@ async def run_simulation(args):
     print(f"   Services: {len(claim.services)} items")
     print(f"   Total Amount: SAR {sum(s['quantity'] * s['unit_price'] for s in claim.services):.2f}")
     print()
-    
+
     async with WorkflowSimulator(
         normalizer_url=args.normalizer_url,
         signer_url=args.signer_url,
@@ -746,17 +746,17 @@ async def run_simulation(args):
             status = "✅" if is_healthy else "❌"
             print(f"   {status} {service}")
         print()
-        
+
         # Run workflow
         print("🚀 Starting workflow execution...")
         print("-" * 40)
-        
+
         result = await simulator.execute_workflow(claim)
-        
+
         # Display results
         print("\n📊 Workflow Results:")
         print("-" * 40)
-        
+
         for step in result.steps:
             status_icon = {
                 WorkflowStatus.SUCCESS: "✅",
@@ -765,28 +765,28 @@ async def run_simulation(args):
                 WorkflowStatus.PENDING: "⏳",
                 WorkflowStatus.IN_PROGRESS: "🔄"
             }.get(step.status, "❓")
-            
+
             duration = f"({step.duration_ms:.0f}ms)" if step.duration_ms else ""
             print(f"   {status_icon} {step.name} {duration}")
-            
+
             if args.verbose and step.response:
                 print(f"      Response: {json.dumps(step.response, indent=6)}")
-            
+
             if step.error:
                 print(f"      ❗ Error: {step.error}")
-        
+
         print("-" * 40)
-        
+
         overall_icon = "✅" if result.overall_status == WorkflowStatus.SUCCESS else "❌"
         print(f"\n{overall_icon} Overall Status: {result.overall_status.value.upper()}")
         print(f"⏱️  Total Duration: {result.total_duration_ms:.0f}ms")
-        
+
         if args.output:
             report = result.to_report()
             with open(args.output, 'w') as f:
                 json.dump(report, f, indent=2, default=str)
             print(f"\n📄 Report saved to: {args.output}")
-        
+
         return result
 
 
@@ -821,9 +821,9 @@ def main():
         "-o", "--output",
         help="Output file for workflow report"
     )
-    
+
     args = parser.parse_args()
-    
+
     try:
         result = asyncio.run(run_simulation(args))
         exit(0 if result.overall_status == WorkflowStatus.SUCCESS else 1)

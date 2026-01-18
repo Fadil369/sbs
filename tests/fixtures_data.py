@@ -10,19 +10,19 @@ Sample data for end-to-end testing including:
 - Insurance coverage
 """
 
-import json
 import uuid
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from typing import Dict, Any, List
+import json
 
 
 class SampleData:
     """Factory for generating sample test data"""
-    
+
     # ==========================================================================
     # SBS Master Codes (CHI Official Codes)
     # ==========================================================================
-    
+
     SBS_CODES = {
         "SBS-LAB-001": {
             "description_en": "Complete Blood Count (CBC)",
@@ -73,11 +73,11 @@ class SampleData:
             "standard_price": 45.00
         }
     }
-    
+
     # ==========================================================================
     # Sample Patients
     # ==========================================================================
-    
+
     PATIENTS = [
         {
             "id": "PAT-001",
@@ -125,11 +125,11 @@ class SampleData:
             }
         }
     ]
-    
+
     # ==========================================================================
     # Sample Insurance Coverage
     # ==========================================================================
-    
+
     INSURANCE_POLICIES = [
         {
             "policy_number": "POL-2024-001234",
@@ -171,11 +171,11 @@ class SampleData:
             "deductible": 1000.00
         }
     ]
-    
+
     # ==========================================================================
     # Sample Facilities
     # ==========================================================================
-    
+
     FACILITIES = [
         {
             "facility_id": 1,
@@ -211,11 +211,11 @@ class SampleData:
             "nphies_payer_id": "NPHIES-FAC-003"
         }
     ]
-    
+
     # ==========================================================================
     # Sample Diagnosis Codes (ICD-10)
     # ==========================================================================
-    
+
     DIAGNOSIS_CODES = {
         "J06.9": "Acute upper respiratory infection, unspecified",
         "R05": "Cough",
@@ -225,11 +225,11 @@ class SampleData:
         "M54.5": "Low back pain",
         "J18.9": "Pneumonia, unspecified organism"
     }
-    
+
     # ==========================================================================
     # Sample Claims
     # ==========================================================================
-    
+
     @classmethod
     def generate_claim(
         cls,
@@ -240,28 +240,28 @@ class SampleData:
         diagnosis_codes: List[str] = None
     ) -> Dict[str, Any]:
         """Generate a sample claim"""
-        
+
         patient = cls.PATIENTS[patient_idx]
         facility = cls.FACILITIES[facility_idx]
         insurance = cls.INSURANCE_POLICIES[insurance_idx]
-        
+
         if services is None:
             services = ["SBS-LAB-001", "SBS-RAD-001", "SBS-CONS-001"]
-        
+
         if diagnosis_codes is None:
             diagnosis_codes = ["J06.9", "R05"]
-        
+
         claim_id = f"CLM-{uuid.uuid4().hex[:8].upper()}"
         service_date = date.today().isoformat()
-        
+
         claim_items = []
         total_amount = 0
-        
+
         for idx, sbs_code in enumerate(services, 1):
             sbs_info = cls.SBS_CODES.get(sbs_code, {})
             unit_price = sbs_info.get("standard_price", 100.00)
             quantity = 1
-            
+
             claim_items.append({
                 "sequence": idx,
                 "sbs_code": sbs_code,
@@ -274,7 +274,7 @@ class SampleData:
                 "service_date": service_date
             })
             total_amount += unit_price * quantity
-        
+
         return {
             "claim_id": claim_id,
             "claim_type": "institutional",
@@ -304,14 +304,14 @@ class SampleData:
             "total_amount": total_amount,
             "currency": "SAR"
         }
-    
+
     @classmethod
     def generate_fhir_bundle(cls, claim: Dict[str, Any]) -> Dict[str, Any]:
         """Generate a FHIR R4 Bundle from claim data"""
-        
+
         bundle_id = str(uuid.uuid4())
         timestamp = datetime.now().isoformat()
-        
+
         # Patient resource
         patient = claim["patient"]
         patient_resource = {
@@ -333,7 +333,7 @@ class SampleData:
                 {"system": "email", "value": patient.get("email", "")}
             ]
         }
-        
+
         # Coverage resource
         insurance = patient["insurance"]
         coverage_resource = {
@@ -365,7 +365,7 @@ class SampleData:
                 "end": insurance["termination_date"]
             }
         }
-        
+
         # Organization resource (Facility)
         facility = claim["facility"]
         organization_resource = {
@@ -384,7 +384,7 @@ class SampleData:
                 }]
             }]
         }
-        
+
         # Build claim items
         fhir_items = []
         for item in claim["items"]:
@@ -408,7 +408,7 @@ class SampleData:
                     "currency": "SAR"
                 }
             })
-        
+
         # Diagnosis entries
         fhir_diagnosis = []
         for diag in claim["diagnosis"]:
@@ -428,7 +428,7 @@ class SampleData:
                     }]
                 }]
             })
-        
+
         # Claim resource
         claim_resource = {
             "resourceType": "Claim",
@@ -475,7 +475,7 @@ class SampleData:
                 "currency": "SAR"
             }
         }
-        
+
         # Build Bundle
         bundle = {
             "resourceType": "Bundle",
@@ -489,7 +489,7 @@ class SampleData:
                 {"fullUrl": f"urn:uuid:{uuid.uuid4()}", "resource": claim_resource}
             ]
         }
-        
+
         return bundle
 
 
@@ -545,9 +545,9 @@ def load_fixture(filename: str) -> Dict[str, Any]:
 if __name__ == "__main__":
     # Generate and save sample fixtures
     import os
-    
+
     fixtures_dir = os.path.dirname(__file__)
-    
+
     fixtures = {
         "sample_claim_simple.json": SAMPLE_CLAIM_SIMPLE,
         "sample_claim_complex.json": SAMPLE_CLAIM_COMPLEX,
@@ -556,11 +556,11 @@ if __name__ == "__main__":
         "sample_fhir_bundle_complex.json": SAMPLE_FHIR_BUNDLE_COMPLEX,
         "sample_fhir_bundle_surgery.json": SAMPLE_FHIR_BUNDLE_SURGERY,
     }
-    
+
     for filename, data in fixtures.items():
         filepath = os.path.join(fixtures_dir, "fixtures", filename)
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
         save_fixture(data, filepath)
         print(f"✅ Saved: {filepath}")
-    
+
     print("\n📦 All fixtures generated successfully!")

@@ -64,9 +64,9 @@ def lookup_local_mapping(facility_id: int, internal_code: str) -> Optional[dict]
     try:
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=RealDictCursor)
-        
+
         query = """
-        SELECT 
+        SELECT
             snm.sbs_code,
             snm.confidence,
             snm.mapping_source,
@@ -75,21 +75,21 @@ def lookup_local_mapping(facility_id: int, internal_code: str) -> Optional[dict]
         FROM sbs_normalization_map snm
         JOIN facility_internal_codes fic ON snm.internal_code_id = fic.internal_code_id
         JOIN sbs_master_catalogue smc ON snm.sbs_code = smc.sbs_id
-        WHERE fic.facility_id = %s 
-          AND fic.internal_code = %s 
+        WHERE fic.facility_id = %s
+          AND fic.internal_code = %s
           AND snm.is_active = TRUE
           AND fic.is_active = TRUE
         LIMIT 1
         """
-        
+
         cursor.execute(query, (facility_id, internal_code))
         result = cursor.fetchone()
-        
+
         cursor.close()
         conn.close()
-        
+
         return dict(result) if result else None
-        
+
     except Exception as e:
         print(f"Database lookup error: {e}")
         return None
@@ -103,9 +103,9 @@ def check_ai_cache(description: str) -> Optional[dict]:
         desc_hash = generate_description_hash(description)
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=RealDictCursor)
-        
+
         query = """
-        SELECT 
+        SELECT
             anc.suggested_sbs_code as sbs_code,
             anc.confidence_score as confidence,
             'ai_cached' as mapping_source,
@@ -115,10 +115,10 @@ def check_ai_cache(description: str) -> Optional[dict]:
         JOIN sbs_master_catalogue smc ON anc.suggested_sbs_code = smc.sbs_id
         WHERE anc.description_hash = %s
         """
-        
+
         cursor.execute(query, (desc_hash,))
         result = cursor.fetchone()
-        
+
         if result:
             # Update hit count and last accessed
             cursor.execute(
@@ -126,12 +126,12 @@ def check_ai_cache(description: str) -> Optional[dict]:
                 (desc_hash,)
             )
             conn.commit()
-        
+
         cursor.close()
         conn.close()
-        
+
         return dict(result) if result else None
-        
+
     except Exception as e:
         print(f"AI cache lookup error: {e}")
         return None
@@ -145,22 +145,22 @@ def ai_lookup_with_gemini(description: str) -> Optional[dict]:
         # First, get all available SBS codes for context
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=RealDictCursor)
-        
+
         cursor.execute("""
-            SELECT sbs_id, description_en, description_ar, category 
-            FROM sbs_master_catalogue 
-            WHERE is_active = TRUE 
+            SELECT sbs_id, description_en, description_ar, category
+            FROM sbs_master_catalogue
+            WHERE is_active = TRUE
             LIMIT 100
         """)
-        
+
         sbs_codes = cursor.fetchall()
-        
+
         # Build context for AI
         sbs_context = "\n".join([
             f"- {code['sbs_id']}: {code['description_en']} ({code['category']})"
             for code in sbs_codes
         ])
-        
+
         prompt = f"""
 You are a medical billing expert. Given the following service description from a hospital:
 
@@ -173,37 +173,37 @@ Return ONLY the most appropriate SBS code ID (e.g., SBS-LAB-001) that matches th
 If no exact match exists, return the closest match.
 Return ONLY the code ID, nothing else.
 """
-        
+
         response = model.generate_content(prompt)
         suggested_code = response.text.strip()
-        
+
         # Validate the suggested code exists
         cursor.execute(
             "SELECT sbs_id, description_en, description_ar FROM sbs_master_catalogue WHERE sbs_id = %s",
             (suggested_code,)
         )
-        
+
         result = cursor.fetchone()
-        
+
         if result:
             # Cache the AI result
             desc_hash = generate_description_hash(description)
             try:
                 cursor.execute("""
-                    INSERT INTO ai_normalization_cache 
+                    INSERT INTO ai_normalization_cache
                     (description_hash, original_description, suggested_sbs_code, confidence_score)
                     VALUES (%s, %s, %s, %s)
-                    ON CONFLICT (description_hash) DO UPDATE 
+                    ON CONFLICT (description_hash) DO UPDATE
                     SET hit_count = ai_normalization_cache.hit_count + 1,
                         last_accessed = NOW()
                 """, (desc_hash, description, suggested_code, 0.85))
                 conn.commit()
             except Exception as cache_error:
                 print(f"Cache insert error: {cache_error}")
-            
+
             cursor.close()
             conn.close()
-            
+
             return {
                 "sbs_code": result['sbs_id'],
                 "confidence": 0.85,
@@ -211,11 +211,11 @@ Return ONLY the code ID, nothing else.
                 "description_en": result['description_en'],
                 "description_ar": result['description_ar']
             }
-        
+
         cursor.close()
         conn.close()
         return None
-        
+
     except Exception as e:
         print(f"AI lookup error: {e}")
         return None
@@ -248,14 +248,14 @@ def health_check():
 def normalize_code(item: InternalClaimItem):
     """
     Main normalization endpoint
-    
+
     Workflow:
     1. Check local database for exact mapping
     2. Check AI cache for previously processed descriptions
     3. If not found, use Gemini AI for dynamic lookup
     4. Return normalized SBS code with confidence score
     """
-    
+
     # Step 1: Local database lookup
     local_result = lookup_local_mapping(item.facility_id, item.internal_code)
     if local_result:
@@ -267,7 +267,7 @@ def normalize_code(item: InternalClaimItem):
             description_en=local_result['description_en'],
             description_ar=local_result['description_ar']
         )
-    
+
     # Step 2: Check AI cache
     cached_result = check_ai_cache(item.description)
     if cached_result:
@@ -279,7 +279,7 @@ def normalize_code(item: InternalClaimItem):
             description_en=cached_result['description_en'],
             description_ar=cached_result['description_ar']
         )
-    
+
     # Step 3: AI-powered lookup
     ai_result = ai_lookup_with_gemini(item.description)
     if ai_result:
@@ -291,7 +291,7 @@ def normalize_code(item: InternalClaimItem):
             description_en=ai_result['description_en'],
             description_ar=ai_result['description_ar']
         )
-    
+
     # No mapping found
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
