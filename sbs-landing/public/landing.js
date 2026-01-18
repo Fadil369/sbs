@@ -1,6 +1,111 @@
 // SBS Integration Engine Landing Page
 // Vanilla JS + Tailwind - No build step required
 
+/**
+ * Toast Notification System
+ */
+class ToastManager {
+  constructor() {
+    this.container = null;
+    this.toasts = [];
+  }
+
+  init() {
+    if (!this.container) {
+      this.container = document.createElement('div');
+      this.container.id = 'toast-container';
+      this.container.className = 'fixed top-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none';
+      this.container.style.cssText = 'max-width: 400px;';
+      document.body.appendChild(this.container);
+    }
+    return this.container;
+  }
+
+  show(message, type = 'info', duration = 5000) {
+    this.init();
+    
+    const toast = document.createElement('div');
+    const id = Date.now();
+    toast.dataset.toastId = id;
+    
+    const colors = {
+      success: 'bg-emerald-600',
+      error: 'bg-red-600',
+      warning: 'bg-amber-600',
+      info: 'bg-blue-600'
+    };
+    
+    const icons = {
+      success: 'M5 13l4 4L19 7',
+      error: 'M6 18L18 6M6 6l12 12',
+      warning: 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z',
+      info: 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z'
+    };
+    
+    toast.className = `pointer-events-auto ${colors[type]} text-white px-6 py-4 rounded-lg shadow-lg flex items-start gap-3 transform translate-x-full transition-all duration-300 ease-out`;
+    
+    toast.innerHTML = `
+      <svg class="w-6 h-6 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${icons[type]}"></path>
+      </svg>
+      <div class="flex-1">
+        <div class="text-sm">${this.escapeHtml(message)}</div>
+      </div>
+      <button class="toast-close ml-2 text-white/80 hover:text-white transition-colors">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+        </svg>
+      </button>
+    `;
+    
+    const closeBtn = toast.querySelector('.toast-close');
+    closeBtn.addEventListener('click', () => this.dismiss(id));
+    
+    this.container.appendChild(toast);
+    this.toasts.push({ id, element: toast });
+    
+    // Animate in
+    requestAnimationFrame(() => {
+      toast.style.transform = 'translateX(0)';
+    });
+    
+    // Auto-dismiss
+    if (duration > 0) {
+      setTimeout(() => this.dismiss(id), duration);
+    }
+    
+    return id;
+  }
+
+  dismiss(id) {
+    const index = this.toasts.findIndex(t => t.id === id);
+    if (index === -1) return;
+    
+    const { element } = this.toasts[index];
+    element.style.transform = 'translateX(400px)';
+    element.style.opacity = '0';
+    
+    setTimeout(() => {
+      element.remove();
+      this.toasts.splice(index, 1);
+    }, 300);
+  }
+
+  success(message, duration) { return this.show(message, 'success', duration); }
+  error(message, duration) { return this.show(message, 'error', duration); }
+  warning(message, duration) { return this.show(message, 'warning', duration); }
+  info(message, duration) { return this.show(message, 'info', duration); }
+
+  escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+}
+
+// Global toast instance
+const toast = new ToastManager();
+
 const translations = {
   en: {
     nav: {
@@ -178,7 +283,8 @@ const translations = {
 
 class SBSLandingPage {
   constructor() {
-    this.lang = 'en';
+    this.lang = localStorage.getItem('sbs-lang') || 'en';
+    this.theme = localStorage.getItem('sbs-theme') || 'dark';
     this.showClaimModal = false;
     this.showSuccessModal = false;
     this.showTrackingModal = false;
@@ -189,6 +295,7 @@ class SBSLandingPage {
     this.claimStatus = null;
     this.statusPollingInterval = null;
     this.validationErrors = {};
+    this.dragCounter = 0; // For drag-drop handling
     this.init();
   }
 
@@ -266,15 +373,70 @@ class SBSLandingPage {
   init() {
     document.documentElement.lang = this.lang;
     document.documentElement.dir = this.lang === 'ar' ? 'rtl' : 'ltr';
+    
+    // Check for claim ID in URL
+    this.checkUrlParams();
+    
     this.render();
     this.attachEventListeners();
+    this.setupKeyboardShortcuts();
+    this.setupOnlineStatus();
+  }
+
+  checkUrlParams() {
+    const params = new URLSearchParams(window.location.search);
+    const claimId = params.get('claimId') || params.get('claim');
+    if (claimId && /^CLM-[A-Z0-9]+-[A-Z0-9]+$/.test(claimId)) {
+      this.currentClaimId = claimId;
+      this.showTrackingModal = true;
+      setTimeout(() => this.startStatusPolling(), 500);
+    }
+  }
+
+  setupKeyboardShortcuts() {
+    document.addEventListener('keydown', (e) => {
+      // Escape to close modals
+      if (e.key === 'Escape') {
+        if (this.showClaimModal) this.closeClaimModal();
+        else if (this.showSuccessModal) { this.showSuccessModal = false; this.render(); }
+        else if (this.showTrackingModal) this.closeTrackingModal();
+      }
+      
+      // Ctrl/Cmd + K to open claim modal
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        this.openClaimModal();
+      }
+      
+      // Ctrl/Cmd + T to open tracking modal
+      if ((e.ctrlKey || e.metaKey) && e.key === 't') {
+        e.preventDefault();
+        this.openTrackingModal();
+      }
+    });
+  }
+
+  setupOnlineStatus() {
+    window.addEventListener('online', () => {
+      toast.success('Connection restored!');
+      if (this.showTrackingModal && this.currentClaimId) {
+        this.startStatusPolling();
+      }
+    });
+    
+    window.addEventListener('offline', () => {
+      toast.warning('You are offline. Some features may not work.');
+      this.stopStatusPolling();
+    });
   }
 
   toggleLang() {
     this.lang = this.lang === 'en' ? 'ar' : 'en';
+    localStorage.setItem('sbs-lang', this.lang);
     document.documentElement.lang = this.lang;
     document.documentElement.dir = this.lang === 'ar' ? 'rtl' : 'ltr';
     this.render();
+    toast.info(this.lang === 'ar' ? 'تم تغيير اللغة إلى العربية' : 'Language changed to English');
   }
 
   openClaimModal() {
@@ -336,19 +498,74 @@ class SBSLandingPage {
   }
 
   handleFileSelect(event) {
-    const file = event.target.files[0];
+    const file = event.target.files?.[0] || event.dataTransfer?.files?.[0];
     if (file) {
       // Validate file size (10MB limit)
       if (file.size > 10 * 1024 * 1024) {
         this.showError('File size exceeds 10MB limit');
         return;
       }
+      // Validate file type
+      const allowedTypes = /\.(pdf|doc|docx|xls|xlsx|json|xml|jpg|jpeg|png)$/i;
+      if (!allowedTypes.test(file.name)) {
+        this.showError('Invalid file type. Allowed: PDF, DOC, XLS, JSON, XML, Images');
+        return;
+      }
       this.selectedFile = file;
       const fileNameEl = document.getElementById('file-name');
       if (fileNameEl) {
-        fileNameEl.textContent = `${file.name} (${this.formatFileSize(file.size)})`;
+        fileNameEl.textContent = `✓ ${file.name} (${this.formatFileSize(file.size)})`;
+        fileNameEl.className = 'text-emerald-400 text-sm mt-2 font-medium';
+      }
+      toast.success(`File "${file.name}" selected`);
+    }
+  }
+
+  handleDragOver(event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  handleDragEnter(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    this.dragCounter++;
+    const dropZone = document.getElementById('file-drop-zone');
+    if (dropZone) {
+      dropZone.classList.add('dragover');
+    }
+  }
+
+  handleDragLeave(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    this.dragCounter--;
+    if (this.dragCounter === 0) {
+      const dropZone = document.getElementById('file-drop-zone');
+      if (dropZone) {
+        dropZone.classList.remove('dragover');
       }
     }
+  }
+
+  handleDrop(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    this.dragCounter = 0;
+    const dropZone = document.getElementById('file-drop-zone');
+    if (dropZone) {
+      dropZone.classList.remove('dragover');
+    }
+    this.handleFileSelect(event);
+  }
+
+  removeSelectedFile() {
+    this.selectedFile = null;
+    const fileInput = document.getElementById('file-input');
+    if (fileInput) fileInput.value = '';
+    const fileNameEl = document.getElementById('file-name');
+    if (fileNameEl) fileNameEl.textContent = '';
+    this.render();
   }
 
   formatFileSize(bytes) {
@@ -383,88 +600,16 @@ class SBSLandingPage {
     return Object.keys(errors).length === 0;
   }
 
-  ensureToastContainer() {
-    let container = document.getElementById('toast-container');
-    if (!container) {
-      container = document.createElement('div');
-      container.id = 'toast-container';
-      container.className = 'fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none';
-      container.style.cssText = 'max-width: 400px;';
-      document.body.appendChild(container);
-    }
-    return container;
+  showError(message) {
+    toast.error(message);
   }
 
-  showError(message) {
-    const t = translations[this.lang];
-    const container = this.ensureToastContainer();
-    
-    // Animation timing constants
-    const TOAST_SLIDE_OFFSET = '400px';
-    const ANIMATION_START_DELAY = 10;
-    const TOAST_AUTO_DISMISS_DELAY = 5000;
-    const FADE_OUT_DURATION = 300;
-    
-    // Helper to render the main toast icon based on type (e.g., 'error', 'success', 'info')
-    function getToastTypeIcon(type) {
-      // Currently only an error-style icon is used; additional types can be added here later.
-      return `
-      <svg class="w-6 h-6 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-      </svg>
-      `;
-    }
-    
-    // Helper to render the close ("X") icon for the toast
-    function getToastCloseIcon() {
-      return `
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-        </svg>
-      `;
-    }
-    
-    const toast = document.createElement('div');
-    toast.className = 'pointer-events-auto bg-red-600 text-white px-6 py-4 rounded-lg shadow-lg flex items-start gap-3 transform translate-x-0 transition-all duration-300 ease-out';
-    
-    toast.innerHTML = `
-      ${getToastTypeIcon('error')}
-      <div class="flex-1">
-        <div class="font-semibold">${t.claim.error}</div>
-        <div class="text-sm mt-1 opacity-90">${this.escapeHtml(message)}</div>
-      </div>
-      <button class="toast-close-btn ml-2 text-white hover:text-gray-200 transition-colors">
-        ${getToastCloseIcon()}
-      </button>
-    `;
-    
-    // Attach close button event listener programmatically (CSP compliant)
-    const closeBtn = toast.querySelector('.toast-close-btn');
-    if (closeBtn) {
-      closeBtn.addEventListener('click', () => {
-        toast.remove();
-      });
-    }
-    
-    // Add toast with slide-in animation
-    toast.style.transform = `translateX(${TOAST_SLIDE_OFFSET})`;
-    container.appendChild(toast);
-    
-    // Trigger slide-in animation
-    setTimeout(() => {
-      toast.style.transform = 'translateX(0)';
-    }, ANIMATION_START_DELAY);
-    
-    // Auto-dismiss after specified delay
-    setTimeout(() => {
-      toast.style.transform = `translateX(${TOAST_SLIDE_OFFSET})`;
-      toast.style.opacity = '0';
-      setTimeout(() => {
-        if (toast.parentElement) {
-          toast.remove();
-        }
-      }, FADE_OUT_DURATION);
-    }, TOAST_AUTO_DISMISS_DELAY);
+  showSuccess(message) {
+    toast.success(message);
+  }
+
+  showInfo(message) {
+    toast.info(message);
   }
 
   escapeHtml(text) {
@@ -851,7 +996,7 @@ class SBSLandingPage {
 
               <div>
                 <label class="block text-sm font-medium text-slate-300 mb-2">${t.claim.uploadFile}</label>
-                <div class="file-upload-area p-6 rounded-lg text-center">
+                <div id="file-drop-zone" class="file-upload-area p-6 rounded-lg text-center" ondragover="app.handleDragOver(event)" ondragenter="app.handleDragEnter(event)" ondragleave="app.handleDragLeave(event)" ondrop="app.handleDrop(event)">
                   <input type="file" id="file-input" accept=".pdf,.doc,.docx,.xls,.xlsx,.json,.xml,.jpg,.jpeg,.png" onchange="app.handleFileSelect(event)" class="hidden">
                   <label for="file-input" class="cursor-pointer">
                     <svg class="w-12 h-12 text-emerald-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -859,13 +1004,32 @@ class SBSLandingPage {
                     </svg>
                     <p class="text-slate-300 font-medium">${t.claim.dragDrop}</p>
                     <p class="text-slate-500 text-sm mt-1">${t.claim.fileTypes}</p>
-                    <p id="file-name" class="text-emerald-400 text-sm mt-2 font-medium"></p>
                   </label>
+                  ${this.selectedFile ? `
+                    <div class="mt-3 flex items-center justify-center gap-2">
+                      <span id="file-name" class="text-emerald-400 text-sm font-medium">✓ ${this.escapeHtml(this.selectedFile.name)} (${this.formatFileSize(this.selectedFile.size)})</span>
+                      <button type="button" onclick="app.removeSelectedFile()" class="text-red-400 hover:text-red-300 transition-colors p-1">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                      </button>
+                    </div>
+                  ` : `<p id="file-name" class="text-emerald-400 text-sm mt-2 font-medium"></p>`}
                 </div>
               </div>
 
-              <button type="submit" ${this.isSubmitting ? 'disabled' : ''} class="w-full px-6 py-3 bg-gradient-to-r from-emerald-500 to-cyan-600 hover:from-emerald-400 hover:to-cyan-500 text-white rounded-lg font-bold text-lg shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all">
-                ${this.isSubmitting ? t.claim.submitting : t.claim.submit}
+              <button type="submit" ${this.isSubmitting ? 'disabled' : ''} class="w-full px-6 py-3 bg-gradient-to-r from-emerald-500 to-cyan-600 hover:from-emerald-400 hover:to-cyan-500 text-white rounded-lg font-bold text-lg shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2">
+                ${this.isSubmitting ? `
+                  <svg class="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                  </svg>
+                  ${t.claim.submitting}
+                ` : `
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                  </svg>
+                  ${t.claim.submit}
+                `}
               </button>
             </form>
           </div>
