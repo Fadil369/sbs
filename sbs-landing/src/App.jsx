@@ -96,6 +96,10 @@ export default function App() {
 
       setPipelineStatus('fhir');
       await new Promise(r => setTimeout(r, 800));
+      if (typeof buildFHIRAndApplyRules !== 'function') {
+        console.error("buildFHIRAndApplyRules is not a function or is undefined.");
+        throw new Error("Claim processing function is unavailable.");
+      }
       const finalClaim = buildFHIRAndApplyRules(items);
 
       if (finalClaim) {
