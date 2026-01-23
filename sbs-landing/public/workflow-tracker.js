@@ -310,7 +310,7 @@ class WorkflowTracker {
           <div class="flex items-start gap-3 ${index > 0 ? 'border-l-2 border-gray-200 ml-2 pl-4' : ''}">
             <div class="flex-shrink-0 w-2 h-2 rounded-full bg-blue-500 mt-2"></div>
             <div class="flex-1">
-              <div class="text-sm font-medium text-gray-800">${event.message || event.event}</div>
+              <div class="text-sm font-medium text-gray-800">${this.escapeHtml(event.message || event.event)}</div>
               <div class="text-xs text-gray-500">${this.formatTimestamp(event.timestamp)}</div>
             </div>
           </div>
