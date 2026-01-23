@@ -31,8 +31,11 @@ export default function App() {
     if (!transcript) return;
     setIsThinking(true);
     try {
+      // Sanitize transcript to prevent prompt injection
+      const sanitizedTranscript = transcript.replace(/[`'"\\]/g, '').substring(0, 1000);
+      
       const insight = await callGemini(
-        `Provide 1 diagnosis and 1 test for: ${transcript}. Language: ${lang === 'ar' ? 'Arabic' : 'English'}`
+        `Provide 1 diagnosis and 1 test for: ${sanitizedTranscript}. Language: ${lang === 'ar' ? 'Arabic' : 'English'}`
       );
       setClinicalInsights(insight);
     } catch (e) {
