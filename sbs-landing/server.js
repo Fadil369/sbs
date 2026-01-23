@@ -393,7 +393,7 @@ app.post('/api/gemini/generate', async (req, res) => {
     }
 
     const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash-exp';
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+    const url = `
 
     const payload = {
       contents: [{ parts: [{ text: prompt }] }],
