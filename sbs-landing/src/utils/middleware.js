@@ -61,7 +61,33 @@ export async function normalizeCode(internalCode, description, lang = 'en') {
     if (!aiResponse) throw new Error("Empty AI Response");
 
     const cleanJson = aiResponse.replace(/```json|```/g, "").trim();
-    const parsed = JSON.parse(cleanJson);
+    let parsed;
+    try {
+      parsed = JSON.parse(cleanJson);
+      
+      // Validate required fields and types
+      if (!parsed || typeof parsed !== 'object') {
+        throw new Error('Invalid JSON structure');
+      }
+      
+      // Ensure required fields exist and are strings
+      if (!parsed.code || typeof parsed.code !== 'string') {
+        parsed.code = "SBS-PENDING";
+      }
+      
+      if (!parsed.desc || typeof parsed.desc !== 'string') {
+        parsed.desc = description;
+      }
+      
+      // Validate confidence is a number between 0 and 1
+      if (typeof parsed.confidence !== 'number' || parsed.confidence < 0 || parsed.confidence > 1) {
+        parsed.confidence = 0.7;
+      }
+      
+    } catch (jsonError) {
+      console.error("JSON parsing failed:", jsonError);
+      throw new Error("Invalid AI response format");
+    }
 
     return {
       sbs_code: parsed.code || "SBS-PENDING",
