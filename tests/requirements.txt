@@ -5,6 +5,6 @@ pytest-asyncio==0.25.2
 playwright==1.49.1
 pytest-playwright==0.6.2
 pytest-html==4.1.1
-pytest-timeout==2.3.1
+pytest-timeout==2.4.0
 httpx==0.28.1
 faker==33.3.1
