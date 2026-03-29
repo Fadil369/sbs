@@ -1,7 +1,7 @@
 # BrainSAIT Arduino IoT Gateway - Dependencies
 # Core
 pyserial==3.5
-requests==2.32.5
+requests==2.33.0
 
 # Environment
 python-dotenv==1.0.1
