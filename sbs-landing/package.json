@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "start": "node server.cjs",
     "server": "node server.cjs",
+    "oracle:scan": "node scripts/oracle-portal-integration.mjs",
     "nphies:scan": "node scripts/nphies-portal-scan.mjs",
     "smoke:e2e": "node scripts/smoke-e2e.mjs",
     "qa:agent": "node scripts/continuous-qa-agent.mjs",

@@ -1,6 +1,9 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { chromium } from 'playwright';
+import { buildNormalizedExtraction, clean } from './lib/portal-extraction.mjs';
+import { resolvePlaywrightLaunchOptions } from './lib/playwright-launch.mjs';
+import { publishNormalizedExtraction } from './lib/publish-extraction.mjs';
 
 const PORTAL_URL = process.env.NPHIES_PORTAL_URL || 'https://portal.nphies.sa';
 const EMAIL = process.env.NPHIES_EMAIL || '';
@@ -78,37 +81,6 @@ const NATIONAL_ID_SELECTORS = [
   'input[name*="identifier" i]',
   'input[id*="identifier" i]'
 ];
-
-function dedupe(values) {
-  return [...new Set(values.filter(Boolean))];
-}
-
-function clean(value) {
-  return String(value || '').trim();
-}
-
-function extractSetupHints(text) {
-  const source = clean(text);
-
-  const urls = dedupe(source.match(/https?:\/\/[^\s"'<>)]+/gi) || []);
-  const ipUrls = urls.filter((u) => /https?:\/\/\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?/i.test(u));
-  const processUrls = urls.filter((u) => /process-message|eligibility|approval|submitclaim|claim/i.test(u));
-
-  const chiIdMatches = source.match(/(?:CHI\s*ID|CHIID)\s*[:=]?\s*(\d{3,10})/gi) || [];
-  const nphiesIdMatches = source.match(/(?:NPHIES\s*ID|NPIES\s*ID)\s*[:=]?\s*(\d{10,20})/gi) || [];
-  const providerIdMatches = source.match(/(?:Provider\s*ID)\s*[:=]?\s*(\d{3,12})/gi) || [];
-
-  return {
-    urls,
-    processUrls,
-    ipUrls,
-    ids: {
-      chi: chiIdMatches,
-      nphies: nphiesIdMatches,
-      provider: providerIdMatches
-    }
-  };
-}
 
 async function ensureDir(dir) {
   await fs.mkdir(dir, { recursive: true });
@@ -226,7 +198,7 @@ async function waitForSettled(page) {
 
 async function tryNavigateLoginCandidates(page, notes) {
   const base = new URL(PORTAL_URL);
-  const candidates = dedupe([
+  const candidates = [...new Set([
     FORCE_LOGIN_PATH,
     '/login',
     '/auth/login',
@@ -234,7 +206,7 @@ async function tryNavigateLoginCandidates(page, notes) {
     '/account/login',
     '/users/sign_in',
     '/sso/login'
-  ]);
+  ].filter(Boolean))];
 
   for (const candidate of candidates) {
     if (!candidate) continue;
@@ -262,7 +234,8 @@ async function main() {
   if (BROWSER_PROXY) {
     launchOptions.proxy = { server: BROWSER_PROXY };
   }
-  const browser = await chromium.launch(launchOptions);
+  const launchConfig = await resolvePlaywrightLaunchOptions(launchOptions);
+  const browser = await chromium.launch(launchConfig.launchOptions);
   const context = await browser.newContext({
     ignoreHTTPSErrors: true,
     viewport: { width: 1512, height: 982 }
@@ -287,6 +260,8 @@ async function main() {
     loginLikelySuccessful: false,
     authMode: AUTH_MODE,
     browserProxyConfigured: Boolean(BROWSER_PROXY),
+    browserExecutableFallbackUsed: launchConfig.usedFallbackExecutable,
+    browserExecutablePath: launchConfig.fallbackExecutablePath || '',
     artifacts: {},
     setupHints: null,
     networkFailures: [],
@@ -389,6 +364,21 @@ async function main() {
       }))
     ).catch(() => []);
 
+    const tables = await page.$$eval('table', (els) =>
+      els.slice(0, 10).map((table) => {
+        const rows = Array.from(table.querySelectorAll('tr')).map((row) =>
+          Array.from(row.querySelectorAll('th,td')).map((cell) => (cell.textContent || '').replace(/\s+/g, ' ').trim()).filter(Boolean)
+        ).filter((row) => row.length > 0);
+
+        const headers = rows.find((row) => row.length > 0) || [];
+        return {
+          headers,
+          rows: rows.slice(headers.length > 0 ? 1 : 0, 11),
+          rowCount: rows.length
+        };
+      })
+    ).catch(() => []);
+
     result.currentUrl = page.url();
     result.title = await page.title();
 
@@ -401,7 +391,26 @@ async function main() {
       result.notes.push('Detected failed requests to SSO/auth endpoints. Check VPS egress/firewall/VPN reachability to sso.nphies.sa.');
     }
 
-    result.setupHints = extractSetupHints(`${bodyText}\n${content}`);
+    const normalizedExtraction = buildNormalizedExtraction({
+      source: 'nphies',
+      portalUrl: PORTAL_URL,
+      currentUrl: result.currentUrl,
+      title: result.title,
+      capturedAt: result.finishedAt || new Date().toISOString(),
+      auth: {
+        attempted: result.loginAttempted,
+        mode: result.authMode,
+        likelySuccessful: result.loginLikelySuccessful
+      },
+      bodyText,
+      html: content,
+      links,
+      formHints,
+      tables,
+      notes: result.notes
+    });
+
+    result.setupHints = normalizedExtraction.endpoints;
 
     const linksPath = path.join(ARTIFACT_DIR, 'links.json');
     await fs.writeFile(linksPath, JSON.stringify(links, null, 2), 'utf8');
@@ -410,6 +419,28 @@ async function main() {
     const formHintsPath = path.join(ARTIFACT_DIR, 'form-hints.json');
     await fs.writeFile(formHintsPath, JSON.stringify(formHints, null, 2), 'utf8');
     result.artifacts.formHints = formHintsPath;
+
+    const tablesPath = path.join(ARTIFACT_DIR, 'table-data.json');
+    await fs.writeFile(tablesPath, JSON.stringify(tables, null, 2), 'utf8');
+    result.artifacts.tables = tablesPath;
+
+    const normalizedPath = path.join(ARTIFACT_DIR, 'normalized-extraction.json');
+    await fs.writeFile(normalizedPath, JSON.stringify(normalizedExtraction, null, 2), 'utf8');
+    result.artifacts.normalizedExtraction = normalizedPath;
+
+    const publishReport = await publishNormalizedExtraction(normalizedExtraction);
+    const publishPath = path.join(ARTIFACT_DIR, 'publish-report.json');
+    await fs.writeFile(publishPath, JSON.stringify(publishReport, null, 2), 'utf8');
+    result.artifacts.publishReport = publishPath;
+    if (publishReport.notes?.length) {
+      result.notes.push(...publishReport.notes);
+    }
+    if (publishReport.results?.length) {
+      const failedTargets = publishReport.results.filter((item) => !item.ok).map((item) => `${item.target} (${item.status})`);
+      if (failedTargets.length > 0) {
+        result.notes.push(`Artifact publish failed for: ${failedTargets.join(', ')}`);
+      }
+    }
 
     if (SAVE_STORAGE_STATE) {
       const storagePath = path.join(ARTIFACT_DIR, 'storage-state.json');
