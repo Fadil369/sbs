@@ -3,6 +3,6 @@ uvicorn[standard]==0.41.0
 pydantic==2.12.5
 python-dotenv==1.2.2
 psycopg2-binary==2.9.11
-cryptography==46.0.5
+cryptography==46.0.6
 requests==2.32.5
 prometheus-client==0.24.1
